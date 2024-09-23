@@ -1,5 +1,7 @@
-package org.springframework.samples.petclinic.model
+package modelTests
 
+import org.springframework.samples.petclinic.model.BaseEntity
+import org.springframework.samples.petclinic.model.Person
 import spock.lang.Specification
 import jakarta.validation.Validation
 import jakarta.validation.Validator
