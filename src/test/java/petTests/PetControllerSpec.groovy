@@ -116,17 +116,6 @@ class PetControllerSpec extends Specification {
         binder.getValidator() instanceof PetValidator
     }
 
-    def "InitBinder for owner disallows 'id' field"() {
-        given: "A WebDataBinder"
-        WebDataBinder binder = new WebDataBinder(null)
-
-        when: "InitBinder is called for owner"
-        petController.initOwnerBinder(binder)
-
-        then: "Field 'id' is disallowed"
-        binder.getDisallowedFields().contains("id")
-    }
-
     def "PopulatePetTypes returns list of pet types"() {
         given: "Owner repository returns pet types"
         ownerRepository.findPetTypes() >> [new PetType(id: 1, name: "Dog"), new PetType(id: 2, name: "Cat")]

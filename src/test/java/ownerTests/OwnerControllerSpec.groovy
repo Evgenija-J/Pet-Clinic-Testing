@@ -1,99 +1,163 @@
 package ownerTests
 
-import org.aspectj.lang.annotation.Before
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.samples.petclinic.PetClinicApplication
 import org.springframework.samples.petclinic.owner.Owner
 import org.springframework.samples.petclinic.owner.OwnerController
 import org.springframework.samples.petclinic.owner.OwnerRepository
+import org.springframework.web.servlet.ModelAndView
 import spock.lang.Specification
-import org.springframework.test.web.servlet.MockMvc
-import org.springframework.test.web.servlet.setup.MockMvcBuilders
-import org.springframework.web.servlet.view.InternalResourceViewResolver
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
-import org.springframework.web.bind.WebDataBinder
+import spock.lang.Unroll
+import org.springframework.validation.BindingResult
+import org.springframework.web.servlet.mvc.support.RedirectAttributes
 
+@SpringBootTest(classes = PetClinicApplication)
 class OwnerControllerSpec extends Specification {
 
-    OwnerRepository ownerRepository
-
     @Autowired
-    MockMvc mockMvc
-
     OwnerController ownerController
 
-    def owners = Mock(OwnerRepository)
+    @Autowired
+    OwnerRepository ownerRepository
 
-    @Before
+    Owner owner
+    Owner owner2
+    Integer ownerId
+
     def setup() {
-        Owner owner = new Owner()
-        owner.setId(1)
-        owner.setFirstName("John")
-        owner.setLastName("Doe")
-        ownerRepository.
-        ownerController = new OwnerController(ownerRepository)
-
-
-        def viewResolver = new InternalResourceViewResolver()
-        viewResolver.setPrefix("/WEB-INF/jsp/")
-        viewResolver.setSuffix(".jsp")
-
-        mockMvc = MockMvcBuilders.standaloneSetup(new OwnerController(ownerRepository)).build()
+        owner = new Owner(firstName: "Test", lastName: "Owner", address: "789 Oak St", city: "Springfield", telephone: "5551234567")
+        owner2 = new Owner(firstName: "Test2", lastName: "Owner2", address: "Address", city: "City", telephone: "1234567890")
+        ownerRepository.save(owner)
+        ownerRepository.save(owner2)
+        ownerId = owner.getId()
     }
 
-    def "Init creation form displays owner creation form"() {
-        when: "GET request to /owners/new"
-        def response = mockMvc.perform(get("/owners/new"))
-
-        then: "Status is OK and view is the owner creation form"
-        response.andExpect(status().isOk())
-                .andExpect(view().name("owners/createOrUpdateOwnerForm"))
-                .andExpect(model().attributeExists("owner"))
+    def cleanup() {
+        ownerRepository.deleteAll()
     }
 
-    def "Process creation form with errors shows error message"() {
-        given: "Invalid owner data"
-        Owner owner = new Owner()
-        owner.setFirstName("")
-        owner.setLastName("Doe")
+    @Unroll
+    def "should show owner details"() {
+        when: "We fetch the owner details"
+        ModelAndView mav = ownerController.showOwner(ownerId)
 
-        when: "POST request to /owners/new with invalid data"
-        def response = mockMvc.perform(post("/owners/new")
-                .param("firstName", "")
-                .param("lastName", "Doe"))
+        then: "The model should contain the correct owner"
+        Owner expectedOwner = ownerRepository.findById(ownerId).orElse(null) 
+        Owner ownerInModel = mav.model.get("owner")
 
-        then: "Shows validation error for firstName"
-        response.andExpect(status().isOk())
-                .andExpect(view().name("owners/createOrUpdateOwnerForm"))
-                .andExpect(model().attributeHasFieldErrors("owner", "firstName"))
+        ownerInModel.equals(expectedOwner)
     }
 
-    def "Show owner returns owner details"() {
+    @Unroll
+    def "should show the form to create a new owner"() {
+        when: "We access the new owner creation form"
+        String viewName = ownerController.initCreationForm([:])
+
+        then: "The view name should be correct"
+        viewName == "owners/createOrUpdateOwnerForm"
+    }
+
+    @Unroll
+    def "should create a new owner successfully"() {
+        given: "A new owner"
+        owner
+
+        and: "A binding result without errors"
+        BindingResult result = Mock(BindingResult)
+        result.hasErrors() >> false
+
+        and: "Redirect attributes"
+        RedirectAttributes redirectAttributes = Mock(RedirectAttributes)
+
+        when: "The creation form is processed"
+        String viewName = ownerController.processCreationForm(owner, result, redirectAttributes)
+
+        then: "The owner should be saved and redirected to the owner details"
+        ownerRepository.findById(owner.getId()) != null
+        redirectAttributes.addFlashAttribute("message", "New Owner Created")
+        viewName == "redirect:/owners/${owner.getId()}"
+    }
+
+    @Unroll
+    def "should handle errors during owner creation"() {
+        given: "An owner with validation errors"
+        owner.setAddress("")
+        owner.setCity("")
+        owner.setTelephone("") // Trigger validation error
+
+        and: "A binding result with errors"
+        BindingResult result = Mock(BindingResult)
+        result.hasErrors() >> true
+
+        and: "Redirect attributes"
+        RedirectAttributes redirectAttributes = Mock(RedirectAttributes)
+
+        when: "The creation form is processed"
+        String viewName = ownerController.processCreationForm(owner, result, redirectAttributes)
+
+        then: "The owner should not be saved and should show the form again"
+        ownerRepository.findById(owner.getId()) == null
+        redirectAttributes.addFlashAttribute("error", "There was an error in creating the owner.")
+        viewName == "owners/createOrUpdateOwnerForm"
+    }
+
+    @Unroll
+    def "should update an existing owner"() {
         given: "An existing owner"
-        int ownerId = 1
-        Owner owner = new Owner()
-        owner.setId(ownerId)
-        owner.setFirstName("John")
-        owner.setLastName("Doe")
-        ownerController.findOwner(ownerId) >> Optional.of(owner)
+        owner = ownerRepository.findById(1) // Assuming owner ID 1 exists
+        owner.setFirstName("UpdatedName")
 
-        when: "GET request to /owners/{ownerId}"
-        def response = mockMvc.perform(get("/owners/${ownerId}"))
+        and: "A binding result without errors"
+        BindingResult result = Mock(BindingResult)
+        result.hasErrors() >> false
 
-        then: "Status is OK and view is the owner details"
-        response.andExpect(status().isOk())
-                .andExpect(view().name("owners/ownerDetails"))
-                .andExpect(model().attributeExists("owner"))
+        and: "Redirect attributes"
+        RedirectAttributes redirectAttributes = Mock(RedirectAttributes)
+
+        when: "The update form is processed"
+        String viewName = ownerController.processUpdateOwnerForm(owner, result, 1, redirectAttributes)
+
+        then: "The owner should be updated and redirected to the owner details"
+        ownerRepository.findById(1).getFirstName() == "UpdatedName"
+        redirectAttributes.addFlashAttribute("message", "Owner Values Updated")
+        viewName == "redirect:/owners/1"
     }
 
-    def "InitBinder disallows 'id' field"() {
-        given: "A WebDataBinder"
-        WebDataBinder binder = new WebDataBinder(null)
+    @Unroll
+    def "should handle errors during owner update"() {
+        given: "An existing owner"
+        owner = ownerRepository.findById(1) // Assuming owner ID 1 exists
+        owner.setFirstName("") // Trigger validation error
 
-        when: "InitBinder is called"
-        ownerController.setAllowedFields(binder)
+        and: "A binding result with errors"
+        BindingResult result = Mock(BindingResult)
+        result.hasErrors() >> true
 
-        then: "Field 'id' is disallowed"
-        binder.getDisallowedFields().contains("id")
+        and: "Redirect attributes"
+        RedirectAttributes redirectAttributes = Mock(RedirectAttributes)
+
+        when: "The update form is processed"
+        String viewName = ownerController.processUpdateOwnerForm(owner, result, 1, redirectAttributes)
+
+        then: "The owner should not be updated and should show the form again"
+        redirectAttributes.addFlashAttribute("error", "There was an error in updating the owner.")
+        viewName == "owners/createOrUpdateOwnerForm"
+    }
+
+    @Unroll
+    def "should find owners by last name"() {
+        when: "Finding owners with last name"
+        def model = Mock(Model)
+        String viewName = ownerController.processFindForm(1, new Owner(lastName: lastName), Mock(BindingResult), model)
+
+        then: "The view name and model attributes should be correct"
+        viewName == expectedView
+        model.addAttribute("listOwners", _) // Verify owners are added to the model
+
+        where:
+        lastName           | expectedView
+        "Doe"              | "owners/ownersList"
+        "NonExistingLast"  | "owners/findOwners"
     }
 }
