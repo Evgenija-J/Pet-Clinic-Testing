@@ -68,58 +68,23 @@ class OwnerControllerSpec extends Specification {
                 .andExpect(model().attributeHasFieldErrors("owner", "firstName"))
     }
 
-//    def "Find owner returns a list of owners"() {
-//        given: "Owner repository returns a list of owners"
-//        Owner owner1 = new Owner(firstName: "John", lastName: "Doe")
-//        Owner owner2 = new Owner(firstName: "Jane", lastName: "Smith")
-//        ownerRepository.findByLastName("Doe", _) >> new PageImpl<>([owner1] as List<Owner>)
-//        ownerRepository.findByLastName("Smith", _) >> new PageImpl<>([owner2] as List<Owner>)
-//
-//        when: "GET request to /owners with last name search"
-//        def response = mockMvc.perform(get("/owners")
-//                .param("lastName", "Doe"))
-//
-//        then: "List of owners is returned"
-//        response.andExpect(status().isOk())
-//                .andExpect(view().name("owners/ownersList"))
-//                .andExpect(model().attributeExists("listOwners"))
-//                .andExpect(model().attribute("listOwners", contains(owner1))) // Check for the expected owner
-//    }
+    def "Show owner returns owner details"() {
+        given: "An existing owner"
+        int ownerId = 1
+        Owner owner = new Owner()
+        owner.setId(ownerId)
+        owner.setFirstName("John")
+        owner.setLastName("Doe")
+        ownerController.findOwner(ownerId) >> Optional.of(owner)
 
-//    def "Show owner returns owner details"() {
-//        given: "An existing owner"
-//        int ownerId = 1
-//        Owner owner = new Owner()
-//        owner.setId(ownerId)
-//        owner.setFirstName("John")
-//        owner.setLastName("Doe")
-//        ownerController.findOwner(ownerId) >> Optional.of(owner)
-//
-//        when: "GET request to /owners/{ownerId}"
-//        def response = mockMvc.perform(get("/owners/${ownerId}"))
-//
-//        then: "Status is OK and view is the owner details"
-//        response.andExpect(status().isOk())
-//                .andExpect(view().name("owners/ownerDetails"))
-//                .andExpect(model().attributeExists("owner"))
-//    }
+        when: "GET request to /owners/{ownerId}"
+        def response = mockMvc.perform(get("/owners/${ownerId}"))
 
-//    def "findOwner should return the Owner when a valid ownerId is provided"() {
-//        given:
-//        Integer ownerId = 1
-//        Owner expectedOwner = new Owner()
-//        expectedOwner.setId(ownerId)
-//        expectedOwner.setFirstName("John")
-//        expectedOwner.setLastName("Doe")
-//
-//        owners.findById(ownerId) >> expectedOwner
-//
-//        when:
-//        Owner result = ownerController.findOwner(ownerId)
-//
-//        then:
-//        result == expectedOwner
-//    }
+        then: "Status is OK and view is the owner details"
+        response.andExpect(status().isOk())
+                .andExpect(view().name("owners/ownerDetails"))
+                .andExpect(model().attributeExists("owner"))
+    }
 
     def "InitBinder disallows 'id' field"() {
         given: "A WebDataBinder"

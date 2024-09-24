@@ -1,0 +1,4 @@
+package vetTests
+
+class VetSpec {
+}
